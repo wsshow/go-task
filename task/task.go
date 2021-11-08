@@ -2,88 +2,114 @@ package task
 
 import (
 	"errors"
+	"log"
+	"reflect"
+	"runtime"
 	"sync"
 	"time"
 )
 
+type HandleFunc func()
+
 type ITask interface {
-	Add(task Task) error
-	Remove(taskName string) error
+	Add(HandleFunc, time.Duration) error
+	Remove(HandleFunc) error
 	Start()
 	Stop()
 	Count() int
 }
 
 type Task struct {
-	Name        string
-	WaitTime    time.Duration
-	HandlerFunc func(...interface{})
-	StopSignal  chan bool
+	name        string
+	waitTime    time.Duration
+	handlerFunc HandleFunc
+	stopSignal  chan bool
 }
 
 type TaskManage struct {
-	Tasks    []Task
-	MapTasks map[string]Task
-	Mu       sync.Mutex
-	Wg       sync.WaitGroup
+	tasks    []Task
+	mapTasks map[string]Task
+	mu       sync.Mutex
 }
 
-func (t *TaskManage) Add(task Task) error {
-	t.Mu.Lock()
-	_, ok := t.MapTasks[task.Name]
+func New() *TaskManage {
+	return &TaskManage{
+		tasks:    make([]Task, 0),
+		mapTasks: make(map[string]Task),
+		mu:       sync.Mutex{},
+	}
+}
+
+func (t *TaskManage) Add(f HandleFunc, wt time.Duration) error {
+	t.mu.Lock()
+	task := Task{
+		name:        getFuncName(f),
+		waitTime:    wt,
+		handlerFunc: f,
+		stopSignal:  make(chan bool),
+	}
+	_, ok := t.mapTasks[task.name]
 	if ok {
-		t.Mu.Unlock()
+		t.mu.Unlock()
 		return errors.New("task name had existed")
 	}
-	t.MapTasks[task.Name] = task
-	t.Tasks = append(t.Tasks, task)
-	t.Mu.Unlock()
+	t.mapTasks[task.name] = task
+	t.tasks = append(t.tasks, task)
+	t.mu.Unlock()
 	return nil
 }
 
-func (t *TaskManage) Remove(taskName string) error {
-	t.Mu.Lock()
-	task, ok := t.MapTasks[taskName]
+func (t *TaskManage) Remove(f HandleFunc) error {
+	t.mu.Lock()
+	taskName := getFuncName(f)
+	task, ok := t.mapTasks[taskName]
 	if !ok {
-		t.Mu.Unlock()
+		t.mu.Unlock()
 		return errors.New("task name hadn't existed")
 	}
-	task.StopSignal <- false
-	delete(t.MapTasks, taskName)
+	task.stopSignal <- false
+	delete(t.mapTasks, taskName)
 	func() {
-		sliceTask := t.Tasks
+		sliceTask := t.tasks
 		cnt := len(sliceTask)
 		for i := 0; i < cnt; i++ {
-			if sliceTask[i].Name == taskName {
+			if sliceTask[i].name == taskName {
 				sliceTask = append(sliceTask[:i], sliceTask[i+1:]...)
 				break
 			}
 		}
-		t.Tasks = sliceTask
+		t.tasks = sliceTask
 	}()
-	t.Mu.Unlock()
+	t.mu.Unlock()
 	return nil
 }
 
 func (t *TaskManage) Start() {
-	for _, task := range t.Tasks {
+	for _, task := range t.tasks {
 		go func(task Task) {
-			select {
-			case <-task.StopSignal:
-				return
-			case <-time.After(task.WaitTime):
-				task.HandlerFunc()
+			for {
+				select {
+				case <-task.stopSignal:
+					log.Println(task.name, "exit")
+					return
+				case <-time.After(task.waitTime):
+					task.handlerFunc()
+				}
 			}
 		}(task)
 	}
 }
 
 func (t *TaskManage) Stop() {
-	for _, task := range t.Tasks {
-		task.StopSignal <- false
+	for _, task := range t.tasks {
+		task.stopSignal <- false
 	}
 }
 
 func (t *TaskManage) Count() int {
-	return len(t.Tasks)
+	return len(t.tasks)
+}
+
+func getFuncName(f HandleFunc) string {
+	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 }
