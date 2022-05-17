@@ -1,5 +1,8 @@
 # go-task
+## 描述
+运行批量轮询任务的任务池
 
+## 示例
 ```go
 package main
 
@@ -62,3 +65,6 @@ func main() {
 	log.Println("current num of goroutine:", runtime.NumGoroutine())
 }
 ```
+
+## 结果
+![go-task-example](./screenshot/go-task-example.png)
