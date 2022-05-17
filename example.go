@@ -1,6 +1,3 @@
-# go-task
-
-```go
 package main
 
 import (
@@ -61,4 +58,3 @@ func main() {
 	// 打印最终协程数量
 	log.Println("current num of goroutine:", runtime.NumGoroutine())
 }
-```
