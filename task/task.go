@@ -15,34 +15,36 @@ type ITask interface {
 	Add(HandleFunc, time.Duration) error
 	Remove(HandleFunc) error
 	Start()
+	Pause()
+	Continue()
 	Stop()
 	Count() int
 }
 
-type Task struct {
+type task struct {
 	name        string
 	waitTime    time.Duration
 	handlerFunc HandleFunc
 	stopSignal  chan bool
 }
 
-type TaskManage struct {
-	tasks    []Task
-	mapTasks map[string]Task
+type taskManage struct {
+	tasks    []task
+	mapTasks map[string]task
 	mu       sync.Mutex
 }
 
-func New() *TaskManage {
-	return &TaskManage{
-		tasks:    make([]Task, 0),
-		mapTasks: make(map[string]Task),
+func New() *taskManage {
+	return &taskManage{
+		tasks:    make([]task, 0),
+		mapTasks: make(map[string]task),
 		mu:       sync.Mutex{},
 	}
 }
 
-func (t *TaskManage) Add(f HandleFunc, wt time.Duration) error {
+func (t *taskManage) Add(f HandleFunc, wt time.Duration) error {
 	t.mu.Lock()
-	task := Task{
+	task := task{
 		name:        getFuncName(f),
 		waitTime:    wt,
 		handlerFunc: f,
@@ -59,7 +61,7 @@ func (t *TaskManage) Add(f HandleFunc, wt time.Duration) error {
 	return nil
 }
 
-func (t *TaskManage) Remove(f HandleFunc) error {
+func (t *taskManage) Remove(f HandleFunc) error {
 	t.mu.Lock()
 	taskName := getFuncName(f)
 	task, ok := t.mapTasks[taskName]
@@ -84,9 +86,9 @@ func (t *TaskManage) Remove(f HandleFunc) error {
 	return nil
 }
 
-func (t *TaskManage) Start() {
-	for _, task := range t.tasks {
-		go func(task Task) {
+func (t *taskManage) Start() {
+	for _, taskT := range t.tasks {
+		go func(task task) {
 			for {
 				select {
 				case <-task.stopSignal:
@@ -96,17 +98,17 @@ func (t *TaskManage) Start() {
 					task.handlerFunc()
 				}
 			}
-		}(task)
+		}(taskT)
 	}
 }
 
-func (t *TaskManage) Stop() {
+func (t *taskManage) Stop() {
 	for _, task := range t.tasks {
-		task.stopSignal <- false
+		task.stopSignal <- true
 	}
 }
 
-func (t *TaskManage) Count() int {
+func (t *taskManage) Count() int {
 	return len(t.tasks)
 }
 
