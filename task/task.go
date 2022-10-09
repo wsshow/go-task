@@ -15,8 +15,6 @@ type ITask interface {
 	Add(HandleFunc, time.Duration) error
 	Remove(HandleFunc) error
 	Start()
-	Pause()
-	Continue()
 	Stop()
 	Count() int
 }
@@ -64,12 +62,12 @@ func (t *taskManage) Add(f HandleFunc, wt time.Duration) error {
 func (t *taskManage) Remove(f HandleFunc) error {
 	t.mu.Lock()
 	taskName := getFuncName(f)
-	task, ok := t.mapTasks[taskName]
+	tk, ok := t.mapTasks[taskName]
 	if !ok {
 		t.mu.Unlock()
 		return errors.New("task name hadn't existed")
 	}
-	task.stopSignal <- false
+	tk.stopSignal <- false
 	delete(t.mapTasks, taskName)
 	func() {
 		sliceTask := t.tasks
