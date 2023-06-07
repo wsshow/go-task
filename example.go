@@ -1,10 +1,11 @@
 package main
 
 import (
-	"go-task/task"
 	"log"
 	"runtime"
 	"time"
+
+	"github.com/wsshow/go-task/task"
 )
 
 func main() {

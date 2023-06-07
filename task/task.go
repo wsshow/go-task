@@ -2,7 +2,6 @@ package task
 
 import (
 	"errors"
-	"log"
 	"reflect"
 	"runtime"
 	"sync"
@@ -90,7 +89,6 @@ func (t *taskManage) Start() {
 			for {
 				select {
 				case <-task.stopSignal:
-					log.Println(task.name, "exit")
 					return
 				case <-time.After(task.waitTime):
 					task.handlerFunc()
